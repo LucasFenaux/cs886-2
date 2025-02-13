@@ -1,9 +1,7 @@
-from torch_geometric.nn.models import GAT
 from torch_geometric.nn import GCNConv
 from torch.nn import Linear
 import torch.nn.functional as F
 import torch
-from global_settings import device
 
 
 class TGModelWrapper(torch.nn.Module):
@@ -15,6 +13,8 @@ class TGModelWrapper(torch.nn.Module):
             self.lin = Linear(out_channels, 1)
         else:
             self.lin = Linear(out_channels, num_classes)
+        if out_channels == num_classes:
+            self.lin = torch.nn.Identity()
 
     def forward(self, data):
         x = self.model(data.x, data.edge_index)
@@ -42,14 +42,3 @@ class GCN(torch.nn.Module):
             x = F.relu(conv(x, edge_index))
         x = self.lin(x)
         return x
-
-
-def get_model(model_name, in_channel, out_channel, num_classes, num_layers: int = 3):
-    if model_name == 'GCN':
-        model = GCN(in_channel, out_channel, num_layers, num_classes)
-    elif model_name == 'GAT':
-        model = TGModelWrapper(GAT(in_channel, out_channel, num_layers=num_layers), out_channel, num_classes)
-    else:
-        raise NotImplementedError
-
-    return model.to(device)

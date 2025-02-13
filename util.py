@@ -5,7 +5,7 @@ import torch
 import numpy as np
 from torch_geometric.data import Data
 from graph_tool.all import Graph, load_graph
-from global_settings import device
+from global_settings import device, features_they_use
 
 
 def plot_generated_data(data, label: str = ""):
@@ -199,7 +199,6 @@ def prepare_gdm_graph(network, features=None, targets=None):
     # features_property = network.vertex_properties["features"]
     all_features = ["num_vertices", "num_edges", "degree", "clustering_coefficient", "eigenvectors", "chi_degree",
                     "chi_lcc", "pagerank_out", "betweenness_centrality", "kcore"]
-    features_they_use = ["degree", "clustering_coefficient", "kcore", "chi_degree"]
     # TODO IMPROVE ME
     if features is None:
         # features = [feature for feature in list(network.vertex_properties.keys()) if feature in all_features]

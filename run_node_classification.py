@@ -1,9 +1,8 @@
 import torch
 from tqdm import tqdm
-from global_settings import device
 from data import generate_data
-from util import plot_generated_data, get_largest_connected_component, load_graph_file, graph_tool_to_pyg
-from model import get_model
+from util import plot_generated_data, get_largest_connected_component
+from models.model import get_model
 
 
 def main():
