@@ -242,7 +242,7 @@ def prepare_gdm_graph(network, features=None, targets=None):
     return data
 
 
-def remove_node_from_pyg_graph(graph: Data, node_idx: int) -> Data:
+def remove_node_from_pyg_graph(graph: Data, node_idx: int, device_to_use = device) -> Data:
     """
     Remove a node (with index `node_idx`) from a PyTorch Geometric Data object.
     This function removes the node features, its label, and all edges connected to it,
@@ -265,7 +265,7 @@ def remove_node_from_pyg_graph(graph: Data, node_idx: int) -> Data:
 
     # Remove the node from the node features.
     if graph.x is not None:
-        new_x = torch.cat([graph.x[:node_idx], graph.x[node_idx + 1:]], dim=0).to(device)
+        new_x = torch.cat([graph.x[:node_idx], graph.x[node_idx + 1:]], dim=0).to(device_to_use)
     else:
         new_x = None
 
@@ -273,10 +273,10 @@ def remove_node_from_pyg_graph(graph: Data, node_idx: int) -> Data:
     if graph.y is not None:
         # If y is a 1D tensor
         if graph.y.dim() == 1:
-            new_y = torch.cat([graph.y[:node_idx], graph.y[node_idx + 1:]], dim=0).to(device)
+            new_y = torch.cat([graph.y[:node_idx], graph.y[node_idx + 1:]], dim=0).to(device_to_use)
         else:
             # If y has more dimensions, remove the row corresponding to the node.
-            new_y = torch.cat([graph.y[:node_idx], graph.y[node_idx + 1:]], dim=0).to(device)
+            new_y = torch.cat([graph.y[:node_idx], graph.y[node_idx + 1:]], dim=0).to(device_to_use)
     else:
         new_y = None
 
@@ -284,7 +284,7 @@ def remove_node_from_pyg_graph(graph: Data, node_idx: int) -> Data:
     edge_index = graph.edge_index
     # Create a mask for edges that do not involve the node.
     mask = (edge_index[0] != node_idx) & (edge_index[1] != node_idx)
-    new_edge_index = edge_index[:, mask].clone().to(device)
+    new_edge_index = edge_index[:, mask].clone().to(device_to_use)
 
     # Adjust the indices of remaining nodes:
     # Any node index greater than node_idx should be decremented by 1.

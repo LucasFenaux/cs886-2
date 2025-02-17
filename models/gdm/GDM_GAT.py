@@ -127,7 +127,9 @@ class GAT_Model(BaseModel):
             x = F.elu(self.fullyconnected_layers[i](x))
 
         x = x.view(x.size(0))
-        x = torch.sigmoid(x)
+        # TODO PUT BACK SIGMOID IF USING MSELOSS
+        # x = torch.sigmoid(x)
+
         # print(x.size())
         return x
 
