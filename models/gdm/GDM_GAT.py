@@ -19,18 +19,21 @@
 # from collections import defaultdict
 
 import torch
+from torch.nn import functional as F
+# from common import dotdict
+from torch_geometric.data import Batch
+from torch_geometric.nn import GATConv, global_mean_pool
+
+from global_settings import features_they_use, device
 # from models.base import BaseModel
 # from network_dismantling.machine_learning.pytorch.common import DefaultDict
 from models.gdm.base import BaseModel
-from torch.nn import functional as F
-from torch_geometric.nn import GATConv
-from global_settings import features_they_use
-# from common import dotdict
 
 
 class GDM_GATArgs:
-    def __init__(self, conv_layers: list[int] = (10, ), heads: list[int] = (1, ), fc_layers: list[int] = (100, ), concat: bool = True,
-                 negative_slope: float = 0.2, dropout: float = 0.3, bias: bool = True, seed_train: int = 0):
+    def __init__(self, conv_layers: list[int] = (10, ), heads: list[int] = (1, ), fc_layers: list[int] = (100, ),
+                 concat: bool = True, negative_slope: float = 0.2, dropout: float = 0.3, bias: bool = True,
+                 seed_train: int = 0, use_sigmoid: bool = True, for_rl: bool = False):
         self.conv_layers = conv_layers
         self.heads = heads
         self.fc_layers = fc_layers
@@ -40,6 +43,8 @@ class GDM_GATArgs:
         self.bias = [bias]*len(conv_layers)
         self.features = features_they_use
         self.seed_train = seed_train
+        self.use_sigmoid = use_sigmoid
+        self.for_rl = for_rl
 
 
 class GAT_Model(BaseModel):
@@ -77,7 +82,11 @@ class GAT_Model(BaseModel):
         self.dropout = args.dropout
         self.bias = args.bias
         self.seed_train = args.seed_train
-
+        self.use_sigmoid = args.use_sigmoid
+        self.for_rl = args.for_rl
+        self.to_scores = None
+        if self.for_rl:
+            self.to_scores = torch.Linear(1, 1)
         # Call super
 
         self.convolutional_layers = torch.nn.ModuleList()
@@ -128,89 +137,14 @@ class GAT_Model(BaseModel):
 
         x = x.view(x.size(0))
         # TODO PUT BACK SIGMOID IF USING MSELOSS
-        # x = torch.sigmoid(x)
+        if self.use_sigmoid:
+            x = torch.sigmoid(x)
+
+        if self.for_rl:
+            x = self.to_scores(x)
 
         # print(x.size())
         return x
-
-    # @staticmethod
-    # def add_model_parameters(parser, grid=False):
-    #
-    #     action = "append" if grid else None
-    #     wrapper = (lambda x: [x] if grid else x)
-    #
-    #     # def wrapper(x):
-    #     #     if grid:
-    #     #         return [x]
-    #     #     else:
-    #     #         return x
-    #
-    #     parser.add_argument(
-    #         "-CL",
-    #         "--conv_layers",
-    #         type=int,
-    #         nargs="*",
-    #         # default=wrapper([10]),
-    #         required=True,
-    #         action=action,
-    #         help="",
-    #     )
-    #     parser.add_argument(
-    #         "-H",
-    #         "--heads",
-    #         type=int,
-    #         nargs="*",
-    #         # default=wrapper([1]),
-    #         required=True,
-    #         action=action,
-    #         help="",
-    #     )
-    #     parser.add_argument(
-    #         "-FCL",
-    #         "--fc_layers",
-    #         type=int,
-    #         nargs="*",
-    #         # default=wrapper([100]),
-    #         action=action,
-    #         required=True,
-    #         help="",
-    #     )
-    #     parser.add_argument(
-    #         "-C",
-    #         "--concat",
-    #         type=bool,
-    #         nargs="*",
-    #         default=wrapper(DefaultDict(True)),
-    #         action=action,
-    #         help="",
-    #     )
-    #     parser.add_argument(
-    #         "-NS",
-    #         "--negative_slope",
-    #         type=float,
-    #         nargs="*",
-    #         default=wrapper(DefaultDict(0.2)),
-    #         action=action,
-    #         help="",
-    #     )
-    #     parser.add_argument(
-    #         "-d",
-    #         "--dropout",
-    #         type=float,
-    #         nargs="*",
-    #         default=wrapper(DefaultDict(0.3)),
-    #         action=action,
-    #         help="Dropout rate for the model, between 0.0 and 1.0",
-    #     )
-    #     parser.add_argument(
-    #         "-B",
-    #         "--bias",
-    #         type=bool,
-    #         nargs="*",
-    #         default=wrapper(DefaultDict(True)),
-    #         action=action,
-    #         help="",
-    #     )
 
     def add_run_parameters(self, run: dict):
         for parameter in self._model_parameters:
@@ -239,9 +173,88 @@ class GAT_Model(BaseModel):
 
         return '_'.join(name)
 
-    # @staticmethod
-    # def parameters_combination_validator(params):
-    #     if len(params["conv_layers"]) != len(params["heads"]):
-    #         return False
-    #
-    #     return dotdict(params)
+
+    @classmethod
+    def train_model(cls, online_net, target_net, optimizer, batch, gamma):
+        # can't do it batched because problems
+        batch_size = len(batch.state)
+        optimizer.zero_grad()
+        avg_loss = 0.
+        for i in range(batch_size):
+            state = batch.state[i]
+            next_state = batch.next_state[i]
+            action = torch.tensor(batch.action[i], dtype=torch.long).to(device)
+            reward  = batch.reward[i]
+
+            pred = online_net(state)
+            next_pred = target_net(next_state)
+
+            pred = pred.gather(0, action)
+
+            target = reward + gamma * next_pred.max()
+
+            loss = F.mse_loss(pred, target.detach()) / batch_size  # we scale by the batch size to avoid explosion
+            avg_loss += loss.item()
+            loss.backward()
+        optimizer.step()
+        return avg_loss
+
+    @classmethod
+    def train_model_batched(cls, online_net, target_net, optimizer, batch, gamma):
+
+        batch_size = len(batch.state)
+        # states = torch.stack(batch.state).contiguous()
+        states = Batch.from_data_list(batch.state)
+        # next_states = torch.stack(batch.next_state).contiguous()
+        next_states = Batch.from_data_list(batch.next_state)
+        actions = torch.tensor(batch.action, dtype=torch.long).contiguous().view(batch_size, -1)
+        rewards = torch.tensor(batch.reward).contiguous().view(batch_size)
+
+
+
+
+        pred = online_net(states)
+        # pred = global_mean_pool(pred, states.batch)  # shape: [batch_size, num_actions]
+
+        next_pred = target_net(next_states)
+        # pred = global_mean_pool(next_pred, next_states.batch)  # shape: [batch_size, num_actions]
+
+        state_list = states.to_data_list()
+        next_step_states = next_states.to_data_list()
+
+        def reshape_pred(pred_to_reshape, pred_state_list):
+            new_pred = []
+            index = 0
+            for data in pred_state_list:
+                part_pred = pred_to_reshape[index:index + data.num_nodes]
+                new_pred.append(part_pred)
+                index += data.num_nodes
+            return new_pred  # can't concatenate them because could be different dims
+
+        reshaped_pred = reshape_pred(pred, state_list)
+        reshaped_next_pred = reshape_pred(next_pred, next_step_states)
+
+        actions = actions.to(device)
+        rewards = rewards.to(device)
+
+        # pred = pred.gather(1, actions)
+        pred = []
+        for i, graph_pred in enumerate(reshaped_pred):
+            pred.append(graph_pred[actions[i]])
+        pred = torch.cat(pred)
+
+        next_pred_max = []
+        for i, next_graph_pred in enumerate(reshaped_next_pred):
+            next_pred_max.append(next_graph_pred.max().unsqueeze(0))
+        next_pred_max = torch.cat(next_pred_max)
+
+        target = rewards + gamma * next_pred_max
+
+        loss = F.mse_loss(pred, target.detach())
+        optimizer.zero_grad()
+        loss.backward()
+        # trying to stabilize training
+        torch.nn.utils.clip_grad_norm_(online_net.parameters(), max_norm=1.0)
+        optimizer.step()
+
+        return loss.item()

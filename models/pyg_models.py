@@ -16,6 +16,9 @@ class TGModelWrapper(torch.nn.Module):
         if out_channels == num_classes:
             self.lin = torch.nn.Identity()
 
+    def get_action(self, x):
+        return torch.argmax(self.forward(x), dim=-1).item()
+
     def forward(self, data):
         x = self.model(data.x, data.edge_index)
         return self.lin(x)

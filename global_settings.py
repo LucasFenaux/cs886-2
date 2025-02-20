@@ -16,4 +16,5 @@ datasets = ["synth_train_NEW", "test", "test_ew", "test_large", "test_synth"]
 threshold = 0.1
 features_they_use = ["degree", "clustering_coefficient", "kcore", "chi_degree"]
 mp_num_cpu = 16
-paths_to_evaluate = 1000
+# paths_to_evaluate = 1000
+lcc_threshold_fn = lambda x: max(int(threshold * x), 1)
