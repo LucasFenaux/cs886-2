@@ -98,21 +98,21 @@ def train(args, online_model, target_model, train_env, eval_loader, optimizer, s
                 if steps % per_epoch_steps == 0:
                     scheduler.step()
 
-        if (steps) % (args.evaluate_every * per_epoch_steps) == 0:
-            total_nodes_removed_pre_reinsert, total_nodes_removed_post_reinsert = evaluate(online_model, eval_loader,
-                                                                                           args.reinsert,
-                                                                                           lcc_threshold_fn)
-            if args.reinsert:
-                print(
-                    f"Eval Nodes Removed: {total_nodes_removed_pre_reinsert.global_avg:.2f} | with reinsert: {total_nodes_removed_post_reinsert.global_avg:.2f}")
-            else:
-                print(f"\nEval Nodes Removed: {total_nodes_removed_pre_reinsert.global_avg:.2f}")
+            if (steps) % (args.evaluate_every * per_epoch_steps) == 0:
+                total_nodes_removed_pre_reinsert, total_nodes_removed_post_reinsert = evaluate(online_model, eval_loader,
+                                                                                               args.reinsert,
+                                                                                               lcc_threshold_fn)
+                if args.reinsert:
+                    print(
+                        f"Eval Nodes Removed: {total_nodes_removed_pre_reinsert.global_avg:.2f} | with reinsert: {total_nodes_removed_post_reinsert.global_avg:.2f}")
+                else:
+                    print(f"\nEval Nodes Removed: {total_nodes_removed_pre_reinsert.global_avg:.2f}")
 
-            print(
-                f"Epoch global metrics: Loss  {total_loss.global_avg:.4f} | Nodes removed: {total_nodes_removed.global_avg:.2f} | with reinsert: {total_nodes_removed_with_reinsert.global_avg:.2f}")
-        # else:
-        #     print(
-        #         f"Epoch global metrics: Loss  {total_loss.global_avg:.4f} | Nodes removed: {total_nodes_removed.global_avg:.2f} | with reinsert: {total_nodes_removed_with_reinsert.global_avg:.2f}")
+                print(
+                    f"Epoch global metrics: Loss  {total_loss.global_avg:.4f} | Nodes removed: {total_nodes_removed.global_avg:.2f} | with reinsert: {total_nodes_removed_with_reinsert.global_avg:.2f}")
+            # else:
+            #     print(
+            #         f"Epoch global metrics: Loss  {total_loss.global_avg:.4f} | Nodes removed: {total_nodes_removed.global_avg:.2f} | with reinsert: {total_nodes_removed_with_reinsert.global_avg:.2f}")
         steps += 1
         pbar.update(1)
 
@@ -169,8 +169,8 @@ def main(args):
 
 def get_parser():
     parser = get_pre_parser()
-    parser.add_argument('--replay_memory_capacity', type=int, default=4000)
-    parser.add_argument("--initial_exploration", type=int, default=2000)
+    parser.add_argument('--replay_memory_capacity', type=int, default=20000)
+    parser.add_argument("--initial_exploration", type=int, default=10000)
     parser.add_argument("--max_epsilon", type=float, default=0.1)
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--update_target", type=int, default=100)

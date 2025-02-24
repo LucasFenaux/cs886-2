@@ -1,0 +1,1 @@
+{"model": "GDM_GAT", "batch_size": 16, "epochs": 20, "evaluate_every": 40, "lr": 0.01, "test_set": "test", "test_size": 1, "test_batch_size": 1, "wd": 1e-05, "reinsert": true, "loss_fn": "MSE", "labels": "probabilities", "recompute_target_every": "step", "use_sigmoid": true, "num_layers": 2, "hidden_dim": 8, "paths_to_eval": 1000, "weight_decay": 1e-05}
