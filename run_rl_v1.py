@@ -12,15 +12,16 @@ import torch
 from util import get_largest_connected_component, remove_node_from_pyg_graph
 from smoothed_value import SmoothedValue
 from reinsertion import reinsertion
-from rl import GraphEnv, Memory
+from rl import DatasetEnv, Memory
 
 
 def get_action(states, online_net, epsilon, env):
-    action = online_net.get_action(states)
+    # action = online_net.get_action(states)
 
     if np.random.rand() <= epsilon:
         return env.get_random_action()
     else:
+        action = online_net.get_action(states)
         return action
 
 
@@ -58,7 +59,7 @@ def train(args, online_model, target_model, train_env, eval_loader, optimizer, s
                 action = get_action(state, online_model, epsilon, train_env)
                 next_state, reward, done = train_env.step(action)
 
-                memory.push(state, next_state, action, reward)
+                memory.push(state.clone().to("cpu"), next_state.clone().to("cpu"), action, reward)
 
                 removals = train_env.get_removals()
                 score += reward
@@ -131,10 +132,10 @@ def main(args):
     args.use_sigmoid = False  # doesn't work with what we are trying to do
     train_dataset = GDMTrainingData()
     test_dataset = GDMTestData(size=args.test_size, test_dataset=args.test_set)  # only want the corruption network for now
-    # train_env = GraphEnv(train_dataset, threshold_fn=lcc_threshold_fn, shuffle=True)
-    train_env = GraphEnv(test_dataset, threshold_fn=lcc_threshold_fn)
+    # train_env = DatasetEnv(train_dataset, threshold_fn=lcc_threshold_fn, shuffle=True)
+    train_env = DatasetEnv(test_dataset, threshold_fn=lcc_threshold_fn, shuffle=True)
 
-    eval_loader = DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False)
+    eval_loader = DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False, num_workers=0)
     model_args = GDM_GATArgs(conv_layers=[40, 30], heads=[10, 10], fc_layers=[100, 100], use_sigmoid=args.use_sigmoid)
 
     online_model = get_model(args.model, in_channel=train_dataset.num_features, out_channel=args.hidden_dim,
@@ -151,11 +152,12 @@ def main(args):
 def get_parser():
     parser = get_pre_parser()
     parser.add_argument('--replay_memory_capacity', type=int, default=10000)
-    parser.add_argument("--initial_exploration", type=int, default=1000)
+    parser.add_argument("--initial_exploration", type=int, default=10000)
     parser.add_argument("--max_epsilon", type=float, default=0.1)
     parser.add_argument("--gamma", type=float, default=0.99)
-    parser.add_argument("--update_target", type=int, default=100)
+    parser.add_argument("--update_target", type=int, default=500)
     parser.add_argument("--tau", type=float, default=0.001)
+    parser.add_argument("--num_steps", default=1e6, type=int)
 
     return parser
 

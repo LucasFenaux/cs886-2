@@ -204,14 +204,11 @@ class GAT_Model(BaseModel):
 
         batch_size = len(batch.state)
         # states = torch.stack(batch.state).contiguous()
-        states = Batch.from_data_list(batch.state)
+        states = Batch.from_data_list(batch.state).to(device)
         # next_states = torch.stack(batch.next_state).contiguous()
-        next_states = Batch.from_data_list(batch.next_state)
+        next_states = Batch.from_data_list(batch.next_state).to(device)
         actions = torch.tensor(batch.action, dtype=torch.long).contiguous().view(batch_size, -1)
         rewards = torch.tensor(batch.reward).contiguous().view(batch_size)
-
-
-
 
         pred = online_net(states)
         # pred = global_mean_pool(pred, states.batch)  # shape: [batch_size, num_actions]
@@ -254,7 +251,7 @@ class GAT_Model(BaseModel):
         optimizer.zero_grad()
         loss.backward()
         # trying to stabilize training
-        torch.nn.utils.clip_grad_norm_(online_net.parameters(), max_norm=1.0)
+        # torch.nn.utils.clip_grad_norm_(online_net.parameters(), max_norm=10.0)
         optimizer.step()
 
         return loss.item()

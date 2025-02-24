@@ -88,6 +88,8 @@ class GDMTestData(Dataset):
         self.files = self.find_files()
         if size > len(self.files):
             raise ValueError(f"size is too big, only {len(self.files)} are available")
+        else:
+            print(self.files[:size])
 
     def find_files(self):
         actual_dir = os.path.join(self.root, self.test_dataset, "dataset")
@@ -95,7 +97,7 @@ class GDMTestData(Dataset):
         for file in os.listdir(actual_dir):
             if file.endswith(self.fmt):
                 file_list.append(os.path.join(actual_dir, file))
-        return file_list
+        return sorted(file_list)  # to ensure consistency
 
     def __getitem__(self, item):
         if self.size == 1 and self.test_dataset == "test":

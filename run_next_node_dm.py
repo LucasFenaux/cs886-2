@@ -154,8 +154,8 @@ def train(args, train_loader, eval_loader, model):
 def main(args):
     train_dataset = GDMTrainingData()
     test_dataset = GDMTestData(size=args.test_size, test_dataset=args.test_set)  # only want the corruption network for now
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    eval_loader = DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
+    eval_loader = DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False, num_workers=0)
     model_args = GDM_GATArgs(conv_layers=[40, 30], heads=[10, 10], fc_layers=[100, 100], use_sigmoid=args.use_sigmoid)
 
     model = get_model(args.model, in_channel=train_dataset.num_features, out_channel=args.hidden_dim,
