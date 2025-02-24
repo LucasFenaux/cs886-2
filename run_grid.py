@@ -22,8 +22,8 @@ def next_node_grid():
     confidence = 0.95
     alpha = 1 - confidence
     #parameters to vary
-    # losses = ["MSE", "CE"]
-    losses = ["CE"]
+    losses = ["MSE", "CE"]
+    # losses = ["CE"]
     labels = ["probabilities", "normalized_probabilities", "keystone", "normalized_keystone"]
     recompute_every = ["step", "no_keystone"]
     use_sigmoid = [True, False]
