@@ -295,3 +295,10 @@ def remove_node_from_pyg_graph(graph: Data, node_idx: int, device_to_use = devic
     return new_graph
 
 
+def add_edge_to_pyg_graph(graph: Data, source_node, target_node, device_to_use = device) -> Data:
+    new_edge = torch.tensor([[source_node], [target_node]], dtype=torch.long, device=device_to_use)
+
+    # Concatenate the new edge with the existing edges
+    graph.edge_index = torch.cat([graph.edge_index, new_edge], dim=1)
+
+    return graph

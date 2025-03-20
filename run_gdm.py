@@ -1,4 +1,7 @@
 import argparse
+
+import numpy as np
+import os
 from data import GDMTrainingData, GDMTestData
 from torch_geometric.loader import DataLoader
 from models.models import get_model, GDM_GATArgs
@@ -15,14 +18,16 @@ from reinsertion import reinsertion
 def evaluate(model, loader, reinsert):
     model.eval()
     total_nodes_removed = SmoothedValue()
+    total_with_reinsert = SmoothedValue()
     histograms = []
     with torch.no_grad():
         for data_batch in loader:
             pred = model(data_batch).squeeze()
 
             if len(data_batch) == 1:
-                nodes_removed, histogram = compute_metrics(data_batch, pred, reinsert)
+                nodes_removed, with_reinsert, histogram = compute_metrics(data_batch, pred, reinsert)
                 total_nodes_removed.update(nodes_removed, n=1)
+                total_with_reinsert.update(with_reinsert, n=1)
                 histograms.append(histogram)
             else:
                 # we go one graph in the batch at a time
@@ -31,11 +36,12 @@ def evaluate(model, loader, reinsert):
                 index = 0
                 for data in data_list:
                     part_pred = pred[index:index + data.num_nodes]
-                    nodes_removed, histogram = compute_metrics(data, part_pred, reinsert)
+                    nodes_removed, with_reinsert, histogram = compute_metrics(data, part_pred, reinsert)
+                    total_nodes_removed.update(nodes_removed, n=1)
                     index += data.num_nodes
                     total_nodes_removed.update(nodes_removed, n=1)  # one element at a time
                     histograms.append(histogram)
-    return total_nodes_removed, histograms
+    return total_nodes_removed, total_with_reinsert, histograms
 
 
 def compute_metrics(data, pred, reinsert: bool = False):
@@ -64,10 +70,11 @@ def compute_metrics(data, pred, reinsert: bool = False):
     if reinsert:
         new_data, reinserted_nodes, sub_history = reinsertion(data, new_data, lcc_threshold_fn(start_lcc_size), removals, start_lcc_size)
         removals = [node_id for node_id in removals if node_id not in reinserted_nodes]
-        nodes_removed_count = len(removals)
+        nodes_removed_count_with_reinsert = len(removals)
         history.extend(sub_history)
+        return nodes_removed_count, nodes_removed_count_with_reinsert, history
 
-    return nodes_removed_count, history
+    return nodes_removed_count, None, history
 
 
 def train(args, train_loader, eval_loader, model):
@@ -75,12 +82,17 @@ def train(args, train_loader, eval_loader, model):
     loss_fn = torch.nn.MSELoss()
     eval_histograms = []
     eval_nodes_removed_history = []
+    best_no_reinsert = np.inf
+    best_model_no_reinsert = None
+    best_model_with_reinsert = None
+    best_with_reinsert = np.inf
 
     for epoch in range(args.epochs):
         pbar = tqdm(train_loader)
         model.train()
         total_loss = SmoothedValue()
         total_nodes_removed = SmoothedValue()
+        total_with_reinsert = SmoothedValue()
 
         for i, data_batch in enumerate(pbar):
             optimizer.zero_grad()
@@ -92,8 +104,10 @@ def train(args, train_loader, eval_loader, model):
             if epoch % args.evaluate_every == 0 or epoch == args.epochs - 1:
                 # only compute if want every epoch or only first and last
                 if len(data_batch) == 1:
-                    nodes_removed, _ = compute_metrics(data_batch, pred, args.reinsert)
+                    nodes_removed, with_reinsert, _ = compute_metrics(data_batch, pred, args.reinsert)
                     total_nodes_removed.update(nodes_removed, n=1)
+                    if args.reinsert:
+                        total_with_reinsert.update(with_reinsert, n=1)
                 else:
                     # we go one graph in the batch at a time
                     data_list = data_batch.to_data_list()
@@ -101,25 +115,34 @@ def train(args, train_loader, eval_loader, model):
                     index = 0
                     for data in data_list:
                         part_pred = pred[index:index+data.num_nodes]
-                        nodes_removed, _ = compute_metrics(data, part_pred, args.reinsert)
+                        nodes_removed, with_reinsert, _ = compute_metrics(data, part_pred, args.reinsert)
                         index += data.num_nodes
                         total_nodes_removed.update(nodes_removed, n=1)  # one element at a time
+                        if args.reinsert:
+                            total_with_reinsert.update(with_reinsert, n=1)
 
-                pbar.set_description(f"Epoch: {epoch} | Loss: {total_loss:.4f} | Nodes removed: {total_nodes_removed:.2f}")
+                pbar.set_description(f"Epoch: {epoch} | Loss: {total_loss:.4f} | Nodes removed: {total_nodes_removed:.2f} | with reinsert: {total_with_reinsert:.2f}")
             else:
-                pbar.set_description(f"Epoch: {epoch} | Loss: {total_loss:.4f}")
+                pbar.set_description(f"Epoch: {epoch} | Loss: {total_loss:.4f} | with reinsert: {total_with_reinsert:.2f}")
         pbar.close()
 
         if epoch % args.evaluate_every == 0 or epoch == args.epochs - 1:
-            eval_nodes_removed, histograms = evaluate(model, eval_loader, args.reinsert)
+            eval_nodes_removed, with_reinsert, histograms = evaluate(model, eval_loader, args.reinsert)
             eval_nodes_removed_history.append(eval_nodes_removed)
             eval_histograms.append(histograms)
-            print(f"Eval Nodes Removed: {eval_nodes_removed.global_avg:.2f}")
-            print(f"Epoch global metrics: Loss  {total_loss.global_avg:.4f} | Nodes removed: {total_nodes_removed.global_avg:.2f}")
+            if eval_nodes_removed.total  < best_no_reinsert:
+                best_no_reinsert = eval_nodes_removed.total
+                best_model_no_reinsert = model.state_dict()
+            if with_reinsert.total < best_with_reinsert:
+                best_with_reinsert = with_reinsert.total
+                best_model_with_reinsert = model.state_dict()
+            print(f"Eval Nodes Removed: {eval_nodes_removed.total:.2f} | with reinsert: {with_reinsert.total:.2f}")
+            print(f"Epoch global metrics: Loss  {total_loss.global_avg:.4f} | Nodes removed: {total_nodes_removed.total:.2f}")
         else:
             print(f"Epoch global metrics: Loss  {total_loss.global_avg:.4f}")
         sleep(0.1)
-    return eval_histograms, eval_nodes_removed_history
+    print(f"Best no reinsert: {best_no_reinsert:.2f} | with reinsert: {best_with_reinsert:.2f}")
+    return eval_histograms, eval_nodes_removed_history, best_no_reinsert, best_model_no_reinsert, best_with_reinsert, best_model_with_reinsert
 
 
 def main(args):
@@ -135,7 +158,12 @@ def main(args):
     model = get_model(args.model, in_channel=train_dataset.num_features, out_channel=args.hidden_dim,
                       num_classes=train_dataset.num_classes, num_layers=args.num_layers, gdm_args=model_args).to(device)
 
-    train(args, train_loader, eval_loader, model)
+    _, _, _, best_model_no_reinsert, _, best_model_with_reinsert =  train(args, train_loader, eval_loader, model)
+    if args.save:
+        os.makedirs(f"./saved_models/", exist_ok=True)
+        torch.save(best_model_no_reinsert, f"./saved_models/gdm_best_model_no_reinsert_{args.test_size}.pt")
+        torch.save(best_model_with_reinsert, f"./saved_models/gdm_best_model_with_reinsert_{args.test_size}.pt")
+
     return model
 
 def get_parser():
@@ -153,6 +181,7 @@ def get_parser():
     parser.add_argument("--test_batch_size", type=int, default=1, help="Test batch size")
     parser.add_argument("--wd", "--weight_decay", type=float, default=1e-5, help="Weight decay")
     parser.add_argument("-r", "--reinsert", action="store_true", help="Perform reinsertion")
+    parser.add_argument("--save", action="store_true", help="Save model")
     # parser.add_argument("--save_results", action="store_true", help="Save results")
     return parser
 

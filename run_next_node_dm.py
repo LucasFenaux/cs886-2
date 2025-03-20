@@ -9,7 +9,8 @@ from util import get_largest_connected_component, remove_node_from_pyg_graph
 from smoothed_value import SmoothedValue
 from reinsertion import reinsertion
 from generate_labels import generate_keystone_labels
-import os
+from run_gdm import main as run_gdm_main
+
 
 
 def evaluate(model, loader, reinsert, lcc_threshold_fn):
@@ -52,6 +53,7 @@ def evaluate(model, loader, reinsert, lcc_threshold_fn):
 
 def train(args, train_loader, eval_loader, model):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=args.lr/10)
     if args.loss_fn == "MSE":
         loss_fn = torch.nn.MSELoss()
     elif args.loss_fn == "CE":
@@ -135,7 +137,7 @@ def train(args, train_loader, eval_loader, model):
                     pbar.set_description(f"Epoch: {epoch} | Loss: {total_loss:.4f} | Nodes Removed: {total_nodes_removed}, with reinsert: {total_nodes_removed_after_reinsertion}")
                 else:
                     pbar.set_description(f"Epoch: {epoch} | Loss: {total_loss:.4f} | Nodes Removed: {total_nodes_removed}")
-
+        scheduler.step()
         if epoch % args.evaluate_every == 0:
             total_nodes_removed_pre_reinsert, total_nodes_removed_post_reinsert = evaluate(model, eval_loader,
                                                                                            args.reinsert, lcc_threshold_fn)
@@ -149,7 +151,30 @@ def train(args, train_loader, eval_loader, model):
             print(f"Epoch global metrics: Loss  {total_loss.global_avg:.4f} | Nodes removed: {total_nodes_removed.global_avg:.2f} | with reinsert: {total_nodes_removed_after_reinsertion.global_avg:.2f}")
     total_nodes_removed_pre_reinsert, total_nodes_removed_post_reinsert = evaluate(model, eval_loader,
                                                                                    args.reinsert, lcc_threshold_fn)
+    print(f"Final results | Nodes removed: {total_nodes_removed_pre_reinsert.global_avg:.2f} | with reinsert: {total_nodes_removed_post_reinsert.global_avg:.2f}")
     return total_nodes_removed_pre_reinsert.global_avg, total_nodes_removed_post_reinsert.global_avg
+
+def pretrain(args, epochs: int = 1):
+    print("GDM pre-training")
+    epochs_cache = args.epochs
+    lr = args.lr
+    wd = args.wd
+    test_size = args.test_size
+    evaluate_every = args.evaluate_every
+    args.epochs = epochs
+    args.lr = 0.003
+    args.wd = 1e-5
+    args.test_size = 1
+    args.evaluate_every = args.epochs * 2
+    model = run_gdm_main(args)
+    args.epochs = epochs_cache
+    args.lr = lr
+    args.wd = wd
+    args.test_size = test_size
+    args.evaluate_every = evaluate_every
+    print("Done with GDM pre-training")
+    return model, args
+
 
 def main(args):
     train_dataset = GDMTrainingData()
@@ -160,6 +185,9 @@ def main(args):
 
     model = get_model(args.model, in_channel=train_dataset.num_features, out_channel=args.hidden_dim,
                       num_classes=train_dataset.num_classes, num_layers=args.num_layers, gdm_args=model_args).to(device)
+    if args.pretrain:
+        model, args = pretrain(args)
+        evaluate(model, eval_loader, args.reinsert, lcc_threshold_fn)
 
     no_reinsert, reinsert = train(args, train_loader, eval_loader, model)
     return no_reinsert, reinsert
@@ -167,7 +195,7 @@ def main(args):
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-m', '--model', type=str, default="GDM_GAT", choices=["GDM_GAT"])
+    parser.add_argument('-m', '--model', type=str, default="GDM_GAT", choices=["GDM_GAT", "GCN", "GAT"])
     parser.add_argument("-b", "--batch_size", type=int, default=16, help="Batch size")
     parser.add_argument("-e", "--epochs", type=int, default=50, help="Number of epochs")
     parser.add_argument("--evaluate_every", type=int, default=10, help="Evaluate model on validation set")
@@ -186,9 +214,10 @@ def get_parser():
     parser.add_argument("--use_sigmoid", type=bool, default=True, help="Use sigmoid")
     # parser.add_argument("--save_results", type=str, default=None, help="Save results to file name provided if not None")
     # useless ones but oh well
-    parser.add_argument("-l", "--num_layers", type=int, default=2, help="Number of layers")
-    parser.add_argument("-d", "--hidden_dim", type=int, default=8, help="Hidden dimension")
-    parser.add_argument("-p", "--paths_to_eval", type=int, default=1000)
+    parser.add_argument("-l", "--num_layers", type=int, default=3, help="Number of layers")
+    parser.add_argument("-d", "--hidden_dim", type=int, default=50, help="Hidden dimension")
+    parser.add_argument("-p", "--paths_to_evaluate", type=int, default=1000)
+    parser.add_argument("--pretrain", action="store_true")
     # parser.add_argument("--save_results", action="store_true", help="Save results")
     # parser.add_argument("--output_dir", type=str, default="./results", help="Output directory")
     return parser
@@ -196,5 +225,4 @@ def get_parser():
 
 if __name__ == '__main__':
     parser = get_parser()
-    args = parser.parse_args()
-    main(args)
+    main(parser.parse_args())

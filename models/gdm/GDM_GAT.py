@@ -86,7 +86,7 @@ class GAT_Model(BaseModel):
         self.for_rl = args.for_rl
         self.to_scores = None
         if self.for_rl:
-            self.to_scores = torch.Linear(1, 1)
+            self.to_scores = torch.nn.Linear(1, 1)
         # Call super
 
         self.convolutional_layers = torch.nn.ModuleList()
@@ -125,6 +125,11 @@ class GAT_Model(BaseModel):
                 torch.nn.Linear(in_features=in_channels, out_features=self.fc_layers[i])
             )
 
+    def encode(self, x, edge_index):
+        for i in range(len(self.convolutional_layers)):
+            x = F.elu(self.convolutional_layers[i](x, edge_index) + self.linear_layers[i](x))
+        return x
+
     def forward(self, x, edge_index):
 
         for i in range(len(self.convolutional_layers)):
@@ -134,14 +139,14 @@ class GAT_Model(BaseModel):
         for i in range(len(self.fullyconnected_layers)):
             # TODO ELU?
             x = F.elu(self.fullyconnected_layers[i](x))
-
-        x = x.view(x.size(0))
-        # TODO PUT BACK SIGMOID IF USING MSELOSS
-        if self.use_sigmoid:
-            x = torch.sigmoid(x)
-
         if self.for_rl:
             x = self.to_scores(x)
+        x = x.view(x.size(0))
+        # TODO PUT BACK SIGMOID IF USING MSELOSS
+        if self.use_sigmoid and not self.for_rl:  # make sure no sigmoid for RL
+            x = torch.sigmoid(x)
+
+
 
         # print(x.size())
         return x
@@ -196,6 +201,7 @@ class GAT_Model(BaseModel):
             loss = F.mse_loss(pred, target.detach()) / batch_size  # we scale by the batch size to avoid explosion
             avg_loss += loss.item()
             loss.backward()
+        old_norm = torch.nn.utils.clip_grad_norm_(online_net.parameters(), max_norm=10.0)
         optimizer.step()
         return avg_loss
 
@@ -251,7 +257,8 @@ class GAT_Model(BaseModel):
         optimizer.zero_grad()
         loss.backward()
         # trying to stabilize training
-        # torch.nn.utils.clip_grad_norm_(online_net.parameters(), max_norm=10.0)
+        old_norm = torch.nn.utils.clip_grad_norm_(online_net.parameters(), max_norm=10.0)
+        # print(old_norm)
         optimizer.step()
 
         return loss.item()

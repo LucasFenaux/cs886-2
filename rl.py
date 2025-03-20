@@ -88,8 +88,16 @@ class GraphEnv:
 
         # compute the reward
         new_lcc_size = get_largest_connected_component(new_graph).num_nodes
-        reward = (self.current_lcc_size - new_lcc_size) / self.start_lcc_size  # normalize the reward to prevent explosion
-        # reward = self.current_lcc_size - new_lcc_size
+        # scale depending on the start size
+        # reward = 100*(self.current_lcc_size - new_lcc_size - 1) / self.start_lcc_size  # normalize the reward to prevent explosion
+        # scale depending on the current size
+        # reward = 100*(self.current_lcc_size - new_lcc_size - 1) / self.current_lcc_size
+        # no scaling, the reward is the number of nodes removed from the lcc -1 for the removal cost
+        reward = self.current_lcc_size - new_lcc_size - 1
+
+        # the -1 is because it costs us 1 to remove a node. Otherwise a removing a bunch of nodes that don't change
+        # the size of the lcc would not be negative, while in reality it is
+        # we scale the reward to be in percentage
         # update the env state
         self.current_graph = new_graph
         self.current_lcc_size = new_lcc_size
@@ -110,6 +118,9 @@ class DatasetEnvModified:
         self.shuffle = shuffle
         self.current_graph = None
         self.current_graph_idx = None
+        self.best_removals = [np.inf]*len(dataset)
+        self.best_removals_with_reinsert = [np.inf]*len(dataset)
+        self.best_model = None
 
     def get_random_action(self):
         # return np.random.randint(0, high=self.current_graph.num_nodes)
@@ -132,6 +143,22 @@ class DatasetEnvModified:
             else:
                 self.current_graph_idx += 1
         self.set_graph_as_current()
+
+    def get_best_removals(self):
+        return np.ma.masked_invalid(self.best_removals).sum()
+
+    def get_best_removals_with_reinsert(self):
+        return np.ma.masked_invalid(self.best_removals_with_reinsert).sum()
+
+    def update_best_removals(self, removals, removals_with_reinsert=None, model=None):
+        if removals_with_reinsert is not None and removals_with_reinsert < self.best_removals_with_reinsert[self.current_graph_idx]:
+            self.best_removals_with_reinsert[self.current_graph_idx] = removals_with_reinsert
+            if model is not None:
+                self.best_model = model
+        if removals < self.best_removals[self.current_graph_idx]:
+            self.best_removals[self.current_graph_idx] = removals
+            if removals_with_reinsert is None and model is not None:
+                self.best_model = model
 
     def set_graph_as_current(self):
         self.current_graph = self.graphs[self.current_graph_idx]["graph"]
@@ -159,6 +186,9 @@ class DatasetEnvModified:
             # since it is still the current graph, a user can get its stats before it is reset
             self.graphs[self.current_graph_idx]["done"] = True
         return new_graph, reward, done
+
+    def __len__(self):
+        return len(self.dataset)
 
 
 class DatasetEnv:
