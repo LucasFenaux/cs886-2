@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# with scheduler
+#LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libgomp.so.1 python run_rl_v3.py --save --lr 0.003 --batch_size 8 --epochs 10 -r --tau 0.01 --num_steps 1000000 --num_completions 200 --replay_memory_capacity 5000 --initial_exploration 3000
+# without scheduler
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libgomp.so.1 python run_rl_v3.py --save --lr 0.003 --batch_size 8 --epochs 10 -r --tau 0.01 --num_steps 1000000 --num_completions 50 --replay_memory_capacity 5000 --initial_exploration 3000

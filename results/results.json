@@ -1,0 +1,272 @@
+{
+    "advogato": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 4326,
+            "removal_with_reinsert_count": 1490
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 4588,
+            "removal_with_reinsert_count": 1698
+        }
+    },
+    "arenas-meta": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 262,
+            "removal_with_reinsert_count": 207
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 306,
+            "removal_with_reinsert_count": 230
+        }
+    },
+    "cfinder-google": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 2822,
+            "removal_with_reinsert_count": 418
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 2863,
+            "removal_with_reinsert_count": 419
+        }
+    },
+    "corruption": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 68,
+            "removal_with_reinsert_count": 29
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 66,
+            "removal_with_reinsert_count": 29
+        }
+    },
+    "dblp-cite": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 9791,
+            "removal_with_reinsert_count": 5128
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 10221,
+            "removal_with_reinsert_count": 5696
+        }
+    },
+    "econ-wm1": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 91,
+            "removal_with_reinsert_count": 66
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 85,
+            "removal_with_reinsert_count": 67
+        }
+    },
+    "ego-twitter": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 15983,
+            "removal_with_reinsert_count": 2380
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 15877,
+            "removal_with_reinsert_count": 2190
+        }
+    },
+    "eu-powergrid": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 111,
+            "removal_with_reinsert_count": 41
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 89,
+            "removal_with_reinsert_count": 40
+        }
+    },
+    "foodweb-baydry": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 97,
+            "removal_with_reinsert_count": 74
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 93,
+            "removal_with_reinsert_count": 75
+        }
+    },
+    "foodweb-baywet": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 86,
+            "removal_with_reinsert_count": 70
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 87,
+            "removal_with_reinsert_count": 70
+        }
+    },
+    "inf-USAir97": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 195,
+            "removal_with_reinsert_count": 149
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 68,
+            "removal_with_reinsert_count": 48
+        }
+    },
+    "internet-topology": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 14043,
+            "removal_with_reinsert_count": 3309
+        },
+        "gdm_best_model_with_reinsert_1": {
+            "removal_count": 14242,
+            "removal_with_reinsert_count": 3457
+        }
+    },
+    "linux": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 22130,
+            "removal_with_reinsert_count": 2927
+        }
+    },
+    "loc-brightkite": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 36921,
+            "removal_with_reinsert_count": 15496
+        }
+    },
+    "maayan-Stelzl": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 954,
+            "removal_with_reinsert_count": 292
+        }
+    },
+    "maayan-figeys": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 1061,
+            "removal_with_reinsert_count": 329
+        }
+    },
+    "maayan-foodweb": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 71,
+            "removal_with_reinsert_count": 69
+        }
+    },
+    "maayan-vidal": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 2212,
+            "removal_with_reinsert_count": 733
+        }
+    },
+    "moreno_crime_projected": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 147,
+            "removal_with_reinsert_count": 39
+        }
+    },
+    "moreno_propro": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 1483,
+            "removal_with_reinsert_count": 179
+        }
+    },
+    "munmun_digg_reply_LCC": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 16846,
+            "removal_with_reinsert_count": 7794
+        }
+    },
+    "opsahl-openflights": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 1686,
+            "removal_with_reinsert_count": 486
+        }
+    },
+    "opsahl-powergrid": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 653,
+            "removal_with_reinsert_count": 199
+        }
+    },
+    "opsahl-ucsocial": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 1357,
+            "removal_with_reinsert_count": 662
+        }
+    },
+    "oregon2_010526": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 8261,
+            "removal_with_reinsert_count": 1967
+        }
+    },
+    "p2p-Gnutella06": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 6759,
+            "removal_with_reinsert_count": 3792
+        }
+    },
+    "p2p-Gnutella31": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 15708,
+            "removal_with_reinsert_count": 11453
+        }
+    },
+    "petster-hamster": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 1717,
+            "removal_with_reinsert_count": 621
+        }
+    },
+    "power-eris1176": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 281,
+            "removal_with_reinsert_count": 70
+        }
+    },
+    "slashdot-threads": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 36459,
+            "removal_with_reinsert_count": 14157
+        }
+    },
+    "slashdot-zoo": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 40973,
+            "removal_with_reinsert_count": 16837
+        }
+    },
+    "subelj_jdk_jdk": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 4027,
+            "removal_with_reinsert_count": 369
+        }
+    },
+    "subelj_jung-j_jung-j": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 4331,
+            "removal_with_reinsert_count": 345
+        }
+    },
+    "web-EPA": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 1812,
+            "removal_with_reinsert_count": 725
+        }
+    },
+    "web-webbase-2001": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 9922,
+            "removal_with_reinsert_count": 717
+        }
+    },
+    "wikipedia_link_kn": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 21236,
+            "removal_with_reinsert_count": 12864
+        }
+    },
+    "wikipedia_link_li": {
+        "gdm_best_model_with_reinsert_5": {
+            "removal_count": 18244,
+            "removal_with_reinsert_count": 9398
+        }
+    }
+}

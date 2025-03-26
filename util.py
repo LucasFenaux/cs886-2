@@ -261,7 +261,7 @@ def remove_node_from_pyg_graph(graph: Data, node_idx: int, device_to_use = devic
         raise ValueError("Graph does not have node features (graph.x), cannot determine number of nodes.")
 
     if node_idx < 0 or node_idx >= num_nodes:
-        raise IndexError("node_idx is out of bounds.")
+        raise IndexError(f"node_idx: {node_idx} is out of bounds.")
 
     # Remove the node from the node features.
     if graph.x is not None:

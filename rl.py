@@ -74,6 +74,7 @@ class GraphEnv:
         self.current_lcc_size = self.start_lcc_size
         self.node_ids = list(range(self.starting_graph.num_nodes))
         self.removals = []
+        return self.current_graph
 
     def get_state(self):
         return self.current_graph.clone()
@@ -119,7 +120,9 @@ class DatasetEnvModified:
         self.current_graph = None
         self.current_graph_idx = None
         self.best_removals = [np.inf]*len(dataset)
+        self.best_removal_ids = [[]]*len(dataset)
         self.best_removals_with_reinsert = [np.inf]*len(dataset)
+        self.best_removals_with_reinsert_ids = [[]]*len(dataset)
         self.best_model = None
 
     def get_random_action(self):
@@ -150,13 +153,17 @@ class DatasetEnvModified:
     def get_best_removals_with_reinsert(self):
         return np.ma.masked_invalid(self.best_removals_with_reinsert).sum()
 
-    def update_best_removals(self, removals, removals_with_reinsert=None, model=None):
+    def update_best_removals(self, removal_ids, removals_with_reinsert_ids=None, model=None):
+        removals = len(removal_ids)
+        removals_with_reinsert = len(removals_with_reinsert_ids)
         if removals_with_reinsert is not None and removals_with_reinsert < self.best_removals_with_reinsert[self.current_graph_idx]:
             self.best_removals_with_reinsert[self.current_graph_idx] = removals_with_reinsert
+            self.best_removals_with_reinsert_ids[self.current_graph_idx] = removals_with_reinsert_ids
             if model is not None:
                 self.best_model = model
         if removals < self.best_removals[self.current_graph_idx]:
             self.best_removals[self.current_graph_idx] = removals
+            self.best_removal_ids[self.current_graph_idx] = removal_ids
             if removals_with_reinsert is None and model is not None:
                 self.best_model = model
 

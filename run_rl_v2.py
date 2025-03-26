@@ -76,13 +76,13 @@ def train(args, online_model, target_model, train_env, eval_loader, optimizer, s
                 nodes_removed_after_reinsertion = len(post_reinsertion_removals)
                 total_nodes_removed_with_reinsert.update(nodes_removed_after_reinsertion, n=1)
 
-                train_env.update_best_removals(len(removals), nodes_removed_after_reinsertion, model=online_model.state_dict())
+                train_env.update_best_removals(removals, post_reinsertion_removals, model=online_model.state_dict())
                 latest_removals_with_reinsert[train_env.current_graph_idx] = nodes_removed_after_reinsertion
                 pbar.set_description(
                     f"Step: {steps} | Eps: {epsilon:.2f} | Reward: {rewards} | Loss: {total_loss} | {num_completions}/{args.num_completions}; Removed: {np.ma.masked_invalid(latest_removals).sum()}--{train_env.get_best_removals()}, "
                     f"reinsert: {np.ma.masked_invalid(latest_removals_with_reinsert).sum()}--{train_env.get_best_removals_with_reinsert()}")
             else:
-                train_env.update_best_removals(len(removals), model=online_model.state_dict())
+                train_env.update_best_removals(removals, model=online_model.state_dict())
                 pbar.set_description(
                     f"Step: {steps} | Eps: {epsilon:.2f} | Reward: {rewards} | Loss: {total_loss} | {num_completions}/{args.num_completions}; Removed: {np.ma.masked_invalid(latest_removals).sum()}--{train_env.get_best_removals()}")
         else:
