@@ -12,6 +12,7 @@ from util import get_largest_connected_component, remove_node_from_pyg_graph
 from smoothed_value import SmoothedValue
 from time import sleep
 from reinsertion import reinsertion
+import copy
 # import torch.multiprocessing as mp
 # mp.set_start_method('spawn')#, force=True)
 
@@ -132,10 +133,10 @@ def train(args, train_loader, eval_loader, model):
             eval_histograms.append(histograms)
             if eval_nodes_removed.total  < best_no_reinsert:
                 best_no_reinsert = eval_nodes_removed.total
-                best_model_no_reinsert = model.state_dict()
+                best_model_no_reinsert = copy.deepcopy(model.state_dict())
             if with_reinsert.total < best_with_reinsert:
                 best_with_reinsert = with_reinsert.total
-                best_model_with_reinsert = model.state_dict()
+                best_model_with_reinsert = copy.deepcopy(model.state_dict())
             print(f"Eval Nodes Removed: {eval_nodes_removed.total:.2f} | with reinsert: {with_reinsert.total:.2f}")
             print(f"Epoch global metrics: Loss  {total_loss.global_avg:.4f} | Nodes removed: {total_nodes_removed.total:.2f}")
         else:

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#python run_gdm.py --test_size 1 --evaluate_every 1 -r --save
-python run_gdm.py --test_size 5 --evaluate_every 1 -r --save
-python run_gdm.py --test_size 10 --evaluate_every 1 -r --save
-python run_gdm.py --evaluate_every 1 -r --save
+#LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libgomp.so.1 python run_gdm.py --test_size 1 --evaluate_every 1 -r --save
+#LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libgomp.so.1 python run_gdm.py --test_size 5 --evaluate_every 1 -r --save
+#LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libgomp.so.1 python run_gdm.py --test_size 10 --evaluate_every 1 -r --save
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libgomp.so.1 python run_gdm.py --evaluate_every 10 -r --save

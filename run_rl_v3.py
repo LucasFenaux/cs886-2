@@ -109,7 +109,7 @@ def train(args, online_model, target_model, train_env, graph, optimizer, schedul
             if len(removals) < best_removal:
                 best_removal = len(removals)
                 best_removal_ids = copy.deepcopy(removals)
-                best_removal_model = online_model.state_dict()
+                best_removal_model = copy.deepcopy(online_model.state_dict())
             if args.reinsert:
                 # we do reinsertion
                 start_state = train_env.get_start_state()
@@ -124,7 +124,7 @@ def train(args, online_model, target_model, train_env, graph, optimizer, schedul
                 # train_env.update_best_removals(removals, post_reinsertion_removals, model=online_model.state_dict())
                 if nodes_removed_after_reinsertion < best_removals_with_reinsert:
                     best_removals_with_reinsert = nodes_removed_after_reinsertion
-                    best_removal_with_reinsert_model = online_model.state_dict()
+                    best_removal_with_reinsert_model = copy.deepcopy(online_model.state_dict())
                     best_removals_with_reinsert_ids = copy.deepcopy(post_reinsertion_removals)
                 pbar.set_description(
                     f"Step: {steps} | Eps: {epsilon:.2f} | Reward: {rewards} | Loss: {total_loss} | {num_completions}/{args.num_completions}; Removed: {latest_removals}--{best_removal}, "
@@ -139,11 +139,11 @@ def train(args, online_model, target_model, train_env, graph, optimizer, schedul
             if len(eval_removals) < best_eval_removals:
                 best_eval_removals = len(eval_removals)
                 best_eval_removals_ids = copy.deepcopy(eval_removals)
-                best_eval_removals_model = online_model.state_dict()
+                best_eval_removals_model = copy.deepcopy(online_model.state_dict())
             if len(eval_removals_with_reinsert) < best_eval_removals_with_reinsert:
                 best_eval_removals_with_reinsert = len(eval_removals_with_reinsert)
-                best_eval_removals_with_reinsert_model = online_model.state_dict()
-                best_eval_removals_with_reinsert_ids = copy.deepcopy(eval_removals)
+                best_eval_removals_with_reinsert_model = copy.deepcopy(online_model.state_dict())
+                best_eval_removals_with_reinsert_ids = copy.deepcopy(eval_removals_with_reinsert)
         else:
             if args.reinsert:
                 pbar.set_description(
@@ -177,11 +177,11 @@ def train(args, online_model, target_model, train_env, graph, optimizer, schedul
                 if len(eval_removals) < best_eval_removals:
                     best_eval_removals = len(eval_removals)
                     best_eval_removals_ids = copy.deepcopy(eval_removals)
-                    best_eval_removals_model = online_model.state_dict()
+                    best_eval_removals_model = copy.deepcopy(online_model.state_dict())
                 if len(eval_removals_with_reinsert) < best_eval_removals_with_reinsert:
                     best_eval_removals_with_reinsert = len(eval_removals_with_reinsert)
-                    best_eval_removals_with_reinsert_model = online_model.state_dict()
-                    best_eval_removals_with_reinsert_ids = copy.deepcopy(eval_removals)
+                    best_eval_removals_with_reinsert_model = copy.deepcopy(online_model.state_dict())
+                    best_eval_removals_with_reinsert_ids = copy.deepcopy(eval_removals_with_reinsert)
                 print(
                         f"Eval Nodes Removed: {len(eval_removals):.2f}--{best_eval_removals} | with reinsert: {len(eval_removals_with_reinsert):.2f}--{best_eval_removals_with_reinsert}")
 
@@ -201,11 +201,12 @@ def train(args, online_model, target_model, train_env, graph, optimizer, schedul
     if len(eval_removals) < best_eval_removals:
         best_eval_removals = len(eval_removals)
         best_eval_removals_ids = copy.deepcopy(eval_removals)
-        best_eval_removals_model = online_model.state_dict()
+        best_eval_removals_model = copy.deepcopy(online_model.state_dict())
     if len(eval_removals_with_reinsert) < best_eval_removals_with_reinsert:
         best_eval_removals_with_reinsert = len(eval_removals_with_reinsert)
-        best_eval_removals_with_reinsert_model = online_model.state_dict()
-        best_eval_removals_with_reinsert_ids = copy.deepcopy(eval_removals)
+        best_eval_removals_with_reinsert_model = copy.deepcopy(online_model.state_dict())
+        best_eval_removals_with_reinsert_ids = copy.deepcopy(eval_removals_with_reinsert)
+    pbar.close()
     print(f"Final Eval performance: Nodes removed: {len(eval_removals):.2f}--{best_eval_removals} | with reinsert: {len(eval_removals_with_reinsert):.2f}--{best_eval_removals_with_reinsert}")
     print(f"Best performance throughout training | Removal: {best_removal:.2f} | With reinsert: {best_removals_with_reinsert:.2f}")
     if args.save:
@@ -221,7 +222,7 @@ def train(args, online_model, target_model, train_env, graph, optimizer, schedul
         torch.save(best_removal_model, os.path.join(folder, f"best_model_{args.num_completions}_{args.num_steps}.pt"))
         np.save(os.path.join(folder, f"best_removal_nodes.npy"), np.array(best_removal_ids))
         # saving the best model and removals with reinsert
-        torch.save(best_removal_with_reinsert_model, os.path.join(folder, f"best__with_reinsert_model_{args.num_completions}_{args.num_steps}.pt"))
+        torch.save(best_removal_with_reinsert_model, os.path.join(folder, f"best_with_reinsert_model_{args.num_completions}_{args.num_steps}.pt"))
         np.save(os.path.join(folder, f"best_removal_with_reinsert_nodes.npy"), np.array(best_removals_with_reinsert_ids))
     return min(best_removal, best_eval_removals), min(best_removals_with_reinsert, best_eval_removals_with_reinsert)
 

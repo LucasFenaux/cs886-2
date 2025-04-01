@@ -88,6 +88,8 @@ class GDMTestData(Dataset):
         self.files = self.find_files()
         if size > len(self.files):
             raise ValueError(f"size is too big, only {len(self.files)} are available")
+        elif size == 1:
+            print([os.path.join(self.root, self.test_dataset, "dataset", "corruption.graphml")])
         else:
             print(self.files[:size])
 
@@ -102,6 +104,7 @@ class GDMTestData(Dataset):
     def __getitem__(self, item):
         if self.size == 1 and self.test_dataset == "test":
             # we choose the corruption graph to compare with the paper graph
+            # print("using corruption")
             file =  os.path.join(self.root, self.test_dataset, "dataset", "corruption.graphml")
             assert file in self.files
         else:

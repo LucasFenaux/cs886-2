@@ -12,7 +12,7 @@ from tqdm import tqdm
 from models.gdm.GDM_GAT import GAT_Model, GDM_GATArgs
 from models.pyg_models import TGModelWrapper
 import torch
-from global_settings import device
+from global_settings import device, lcc_threshold_fn
 
 
 def evaluate_gdm(model, graph):
@@ -75,20 +75,26 @@ def get_rl_paths(saved_model_path, test_dataset):
     rl_model_paths = {}
     rl_removal_paths = {}
     for f in os.listdir(saved_model_path):
-        if os.path.isdir(os.path.join(saved_model_path, f)) and f+".graphml" in test_dataset.files[:len(test_dataset)]:
-            for d_f in os.listdir(os.path.join(saved_model_path, f)):
-                filename, ext = os.path.splitext(os.path.basename(d_f))
-                if ext == ".pt":
-                    # is a model file
-                    dict_to_update = rl_model_paths
-                elif ext == ".npy":
-                    # is a removal list
-                    dict_to_update = rl_removal_paths
-                else:
-                    continue
-                if f not in dict_to_update.keys():
-                    dict_to_update[f] = []
-                dict_to_update[f].append((os.path.join(saved_model_path, f, d_f), filename))
+        if os.path.isdir(os.path.join(saved_model_path, f)):
+            found = False
+            for graph_file in test_dataset.files[:len(test_dataset)]:
+                if f in graph_file:
+                    found = True
+                    break
+            if found:
+                for d_f in os.listdir(os.path.join(saved_model_path, f)):
+                    filename, ext = os.path.splitext(os.path.basename(d_f))
+                    if ext == ".pt":
+                        # is a model file
+                        dict_to_update = rl_model_paths
+                    elif ext == ".npy":
+                        # is a removal list
+                        dict_to_update = rl_removal_paths
+                    else:
+                        continue
+                    if f not in dict_to_update.keys():
+                        dict_to_update[f] = []
+                    dict_to_update[f].append((os.path.join(saved_model_path, f, d_f), filename))
     return rl_model_paths, rl_removal_paths
 
 
@@ -98,16 +104,16 @@ def main_rl(args):
     saved_model_path = "./saved_models/"
     log_dir = "./results/"
     rl_model_paths, rl_removal_paths = get_rl_paths(saved_model_path, test_dataset)
-    print([rl_model_paths[i][1] for i in range(len(rl_model_paths))])
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    pbar = tqdm(total=len(rl_model_paths)*len(test_dataset))
+    pbar = tqdm(total=len(rl_model_paths.values()))
     for i, graph in enumerate(test_dataset):
         graph_name = os.path.splitext(os.path.basename(test_dataset.files[i]))[0]
         if graph_name in list(rl_model_paths.keys()):
             # do the models
             for j, (model_path, model_name) in enumerate(rl_model_paths[graph_name]):
-                model_args = GDM_GATArgs(conv_layers=[40, 30], heads=[10, 10], fc_layers=[100, 100])
+                model_args = GDM_GATArgs(conv_layers=[40, 30], heads=[10, 10], fc_layers=[100, 100], use_sigmoid=False,
+                                         for_rl=True)
                 model = TGModelWrapper(GAT_Model(model_args), 1, num_classes=train_dataset.num_classes).to(device)
                 model.load_state_dict(torch.load(model_path))
                 model.eval()
@@ -123,7 +129,7 @@ def main_rl(args):
                 if model_name not in list(results[graph_name].keys()):
                     results[graph_name][model_name] = {}
                     # we need to evaluate that model on that graph
-                    removals, removals_with_reinsert = evaluate_rl(model, graph.clone().to(device))
+                    removals, removals_with_reinsert = evaluate_rl(model, graph.clone().to(device), lcc_threshold_fn)
                     removal_count = len(removals)
                     removal_with_reinsert_count = len(removals_with_reinsert)
                     results[graph_name][model_name]["removal_count"] = removal_count
@@ -132,8 +138,8 @@ def main_rl(args):
                         json.dump(results, result_f, indent=4)
                 pbar.update(1)
             # do the saved removals
-            file_paths = [rl_removal_paths[graph_name][i][0] for i in range(len(rl_removal_paths))]
-            file_names = [rl_removal_paths[graph_name][i][1] for i in range(len(rl_removal_paths))]
+            file_paths = [tup[0] for tup in rl_removal_paths[graph_name]]
+            file_names = [tup[1] for tup in rl_removal_paths[graph_name]]
             keys = {"best_eval": ["best_eval_removal_nodes", "best_eval_removal_with_reinsert_nodes"],
                     "best_train": ["best_removal_nodes", "best_removal_with_reinsert_nodes"]}
             for key in keys.keys():

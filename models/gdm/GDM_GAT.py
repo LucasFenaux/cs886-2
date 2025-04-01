@@ -201,6 +201,12 @@ class GAT_Model(BaseModel):
             loss = F.mse_loss(pred, target.detach()) / batch_size  # we scale by the batch size to avoid explosion
             avg_loss += loss.item()
             loss.backward()
+        # # TODO: remove once it is confirmaed that the parameters I care about have gradients
+        # for name, param in online_net.named_parameters():
+        #     if param.grad is None:
+        #         print(f"Parameter '{name}' has no gradient.")
+        #     else:
+        #         print(f"Parameter '{name}' gradient norm: {param.grad.norm().item():.4f}")
         old_norm = torch.nn.utils.clip_grad_norm_(online_net.parameters(), max_norm=10.0)
         optimizer.step()
         return avg_loss

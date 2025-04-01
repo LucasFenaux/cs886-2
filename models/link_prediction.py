@@ -10,8 +10,8 @@ class LinkPredictor(torch.nn.Module):
         self.q_value_estimator = torch.nn.Sequential(torch.nn.Linear(2*self.embedding_size, self.embedding_size),
                                                      torch.nn.ReLU(), torch.nn.Linear(self.embedding_size, 1))
 
-    def edge_q_value(self, z_1, z_2):
-        return self.q_value_estimator(torch.cat([z_1, z_2], dim=0)).squeeze()
+    # def edge_q_value(self, z_1, z_2):
+    #     return self.q_value_estimator(torch.cat([z_1, z_2], dim=0)).squeeze()
 
     def forward(self, data):
         # compute the Q-values for all edges

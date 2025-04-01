@@ -18,6 +18,7 @@ import copy
 import itertools
 from run_next_node_dm import evaluate as evaluate_dismantler
 import matplotlib.pyplot as plt
+import os
 
 
 edge_add_count_fn = lambda x: max(int(x.num_edges*0.001), 1)
@@ -27,7 +28,7 @@ class EdgeGraphEnv:
     """
     Stores the environment for one graph
     """
-    def __init__(self, graph, threshold_fn, dismantler, alpha: float = 1., edge_count_to_add: int = 50):
+    def __init__(self, graph, threshold_fn, dismantler, alpha: float = 1., beta: float = 1., edge_count_to_add: int = 50):
         self.threshold_fn = threshold_fn
         self.starting_graph = graph
         self.start_lcc_size = get_largest_connected_component(graph).num_nodes
@@ -47,13 +48,14 @@ class EdgeGraphEnv:
         self.starting_removal_with_reinsert = None
         self.edges_added = []
         self.alpha = alpha
+        self.beta = beta
         self.edge_count_to_add = edge_count_to_add
         self.edges_added_count = 0
         self.reset()
 
     def copy(self):
         return EdgeGraphEnv(self.starting_graph.clone().detach(), self.threshold_fn, self.dismantler,
-                            self.alpha, self.edge_count_to_add)
+                            self.alpha, self.beta, self.edge_count_to_add)
 
     def get_random_action(self):
         # get a random edge that doesn't already exist
@@ -137,7 +139,7 @@ class EdgeGraphEnv:
         reward_removed = new_removed - self.current_removal
         reward_with_reinsert = new_with_reinsert - self.current_removal_with_reinsert
 
-        reward = reward_removed + self.alpha*reward_with_reinsert
+        reward = self.beta*reward_removed + self.alpha*reward_with_reinsert
         reward = reward*0.5
 
 
@@ -222,7 +224,7 @@ def update_target_model(online_model, target_model, tau):
         target_param.data.copy_(tau * online_param.data + (1.0 - tau) * target_param.data)
 
 
-def train(args, online_model, target_model, train_env, optimizer, scheduler = None):
+def train(args, online_model, target_model, train_env, optimizer, scheduler = None, filename=None):
     no_reverse_edge = []
     self_edges = []
     for edge in train_env.edges:
@@ -237,20 +239,34 @@ def train(args, online_model, target_model, train_env, optimizer, scheduler = No
     steps = 0
     total_loss = SmoothedValue(fmt='{avg:.3e}')
     max_diff = 0
+    best_model_state = None
+    best_diff_edges = []
     max_diff_with_reinsert = 0
+    best_model_state_with_reinsert = None
+    best_diff_edges_with_reinsert = []
+
+    max_eval_diff = 0
+    best_eval_diff_edges = []
+    best_eval_model_state = None
+    max_eval_diff_with_reinsert = 0
+    best_eval_diff_edges_with_reinsert = []
+    best_eval_model_state_with_reinsert = None
+
     rewards = SmoothedValue(window_size=20, fmt='{avg:.3f}')
     pbar = tqdm(range(args.num_steps))
     per_epoch_steps = (args.num_steps - args.initial_exploration) // args.epochs
     latest_diff = 0
     latest_diff_with_reinsert = 0
-    best_model_state = None
 
     episode_diffs = []
     episode_diffs_reinsert = []
     episode_rewards = []  # to record cumulative reward per episode
     episode_reward = 0.0  # accumulator for the current episode
+    num_completions = 0
+    done_condition = False
+    train_env.reset()
 
-    while steps < args.num_steps:
+    while not done_condition:
         online_model.train()
         target_model.train()
         state = train_env.get_state()
@@ -264,15 +280,21 @@ def train(args, online_model, target_model, train_env, optimizer, scheduler = No
         memory.push(state.clone().to("cpu"), next_state.clone().to("cpu"), action, reward)
 
         if done:
+            if steps > args.initial_exploration and epsilon <= args.max_epsilon:
+                num_completions += 1
             # we gather the stats
             best_removal, best_removal_with_reinsert = train_env.best_removal, train_env.best_removal_with_reinsert
             best_diff = best_removal - train_env.starting_removal
             best_diff_with_reinsert = best_removal_with_reinsert - train_env.starting_removal_with_reinsert
             if best_diff > max_diff:
                 max_diff = best_diff
+                best_model_state = online_model.state_dict()
+                best_diff_edges = train_env.get_edges_added()
+
             if best_diff_with_reinsert > max_diff_with_reinsert:
                 max_diff_with_reinsert = best_diff_with_reinsert
-                best_model_state = online_model.state_dict()
+                best_model_state_with_reinsert = online_model.state_dict()
+                best_diff_edges_with_reinsert = train_env.get_edges_added()
 
             latest_diff = best_diff
             latest_diff_with_reinsert = best_diff_with_reinsert
@@ -285,28 +307,28 @@ def train(args, online_model, target_model, train_env, optimizer, scheduler = No
             train_env.reset()
             if args.reinsert:
                 pbar.set_description(
-                    f"Step: {steps} | Eps: {epsilon:.2f} | Reward: {rewards} | Loss: {total_loss} | Base (No-R/R) {train_env.starting_removal}/{train_env.starting_removal_with_reinsert} "
+                    f"Step: {steps} ({num_completions}/{args.num_completions}) | Eps: {epsilon:.2f} | Reward: {rewards} | Loss: {total_loss} | Base (No-R/R) {train_env.starting_removal}/{train_env.starting_removal_with_reinsert} "
                     f"Diff: {latest_diff}--{max_diff}, "
                     f"Diff-R: {latest_diff_with_reinsert}--{max_diff_with_reinsert} ")
             else:
                 pbar.set_description(
-                    f"Step: {steps} | Eps: {epsilon:.2f} | Reward: {rewards} | Loss: {total_loss} | Base (No-R) {train_env.starting_removal} "
+                    f"Step: {steps} ({num_completions}/{args.num_completions}) | Eps: {epsilon:.2f} | Reward: {rewards} | Loss: {total_loss} | Base (No-R) {train_env.starting_removal} "
                     f"Diff: {latest_diff}--{max_diff}")
         else:
             if args.reinsert:
                 pbar.set_description(
-                    f"Step: {steps} | Eps: {epsilon:.2f} | Reward: {rewards} | Loss: {total_loss} | Base (No-R/R) {train_env.starting_removal}/{train_env.starting_removal_with_reinsert} "
+                    f"Step: {steps} ({num_completions}/{args.num_completions}) | Eps: {epsilon:.2f} | Reward: {rewards} | Loss: {total_loss} | Base (No-R/R) {train_env.starting_removal}/{train_env.starting_removal_with_reinsert} "
                     f"Diff: {latest_diff}--{max_diff}, "
                     f"Diff-R: {latest_diff_with_reinsert}--{max_diff_with_reinsert} ")
             else:
                 pbar.set_description(
-                    f"Step: {steps} | Eps: {epsilon:.2f} | Reward: {rewards} | Loss: {total_loss} | Base (No-R) {train_env.starting_removal} "
+                    f"Step: {steps} ({num_completions}/{args.num_completions}) | Eps: {epsilon:.2f} | Reward: {rewards} | Loss: {total_loss} | Base (No-R) {train_env.starting_removal} "
                     f"Diff: {latest_diff}--{max_diff}")
 
         if steps > args.initial_exploration and len(memory) > args.batch_size:
             # epsilon -= 0.00005
             # epsilon -= 0.0005
-            epsilon -= 0.005
+            epsilon -= 0.001
 
             epsilon = max(epsilon, args.max_epsilon)
 
@@ -324,8 +346,20 @@ def train(args, online_model, target_model, train_env, optimizer, scheduler = No
                     scheduler.step()
 
             if (steps) % (args.evaluate_every * per_epoch_steps) == 0:
+                eval_env = train_env.copy()
                 (val_starting_removal, val_starting_removal_with_reinsert, val_best_removal,
-                 val_best_removal_with_reinsert) = evaluate(train_env.copy(), online_model)
+                 val_best_removal_with_reinsert) = evaluate(eval_env, online_model)
+                eval_diff = val_best_removal - val_starting_removal
+                eval_diff_with_reinsert = val_best_removal_with_reinsert - val_starting_removal_with_reinsert
+                if eval_diff > max_eval_diff:
+                    max_eval_diff = eval_diff
+                    best_eval_model_state = online_model.state_dict()
+                    best_eval_diff_edges = train_env.get_edges_added()
+                if eval_diff_with_reinsert > max_eval_diff_with_reinsert:
+                    max_eval_diff_with_reinsert = eval_diff_with_reinsert
+                    best_eval_model_state_with_reinsert = online_model.state_dict()
+                    best_eval_diff_edges_with_reinsert = train_env.get_edges_added()
+
                 if args.reinsert:
                     print(
                         f"Base (No-R/R): {val_starting_removal}/{val_starting_removal_with_reinsert} | "
@@ -340,6 +374,40 @@ def train(args, online_model, target_model, train_env, optimizer, scheduler = No
 
         steps += 1
         pbar.update(1)
+        if steps >= args.num_steps:
+            done_condition = True
+        if args.num_completions is not None and num_completions >= args.num_completions:
+            done_condition = True
+
+    eval_env = train_env.copy()
+    (val_starting_removal, val_starting_removal_with_reinsert, val_best_removal,
+     val_best_removal_with_reinsert) = evaluate(eval_env, online_model)
+    eval_diff = val_best_removal - val_starting_removal
+    eval_diff_with_reinsert = val_best_removal_with_reinsert - val_starting_removal_with_reinsert
+    if eval_diff > max_eval_diff:
+        max_eval_diff = eval_diff
+        best_eval_model_state = online_model.state_dict()
+        best_eval_diff_edges = train_env.get_edges_added()
+    if eval_diff_with_reinsert > max_eval_diff_with_reinsert:
+        max_eval_diff_with_reinsert = eval_diff_with_reinsert
+        best_eval_model_state_with_reinsert = online_model.state_dict()
+        best_eval_diff_edges_with_reinsert = train_env.get_edges_added()
+
+    if args.save:
+        folder = f"./saved_models/{filename}/"
+        os.makedirs(folder, exist_ok=True)
+        # saving the best eval model and edges added
+        torch.save(best_eval_model_state, os.path.join(folder, f"defense_best_eval_model_{10}_gdm_{args.num_completions}_{args.num_steps}_{args.model_file}.pt"))
+        np.save(os.path.join(folder, f"defense_best_eval_edges_added_{10}_gdm_{args.num_completions}_{args.num_steps}_{args.model_file}.npy"), np.array(best_eval_diff_edges))
+        # saving the best eval model and removals with reinsert
+        torch.save(best_eval_model_state_with_reinsert, os.path.join(folder, f"defense_best_eval_with_reinsert_model_{10}_gdm_{args.num_completions}_{args.num_steps}_{args.model_file}.pt"))
+        np.save(os.path.join(folder, f"defense_best_eval_edges_added_with_reinsert_{10}_gdm_{args.num_completions}_{args.num_steps}_{args.model_file}.npy"), np.array(best_eval_diff_edges_with_reinsert))
+        # saving the best model and removals
+        torch.save(best_model_state, os.path.join(folder, f"defense_best_model_{10}_gdm_{args.num_completions}_{args.num_steps}_{args.model_file}.pt"))
+        np.save(os.path.join(folder, f"defense_best_removal_nodes_{10}_gdm_{args.num_completions}_{args.num_steps}_{args.model_file}.npy"), np.array(best_diff_edges))
+        # saving the best model and removals with reinsert
+        torch.save(best_model_state_with_reinsert, os.path.join(folder, f"defense_best_with_reinsert_model_{10}_gdm_{args.num_completions}_{args.num_steps}_{args.model_file}.pt"))
+        np.save(os.path.join(folder, f"best_removal_with_reinsert_nodes_{10}_gdm_{args.num_completions}_{args.num_steps}_{args.model_file}.npy"), np.array(best_diff_edges_with_reinsert))
 
     plt.figure(figsize=(10, 6))
     plt.plot(episode_diffs, label='Best Diff (No Reinserts)', marker='o')
@@ -363,7 +431,7 @@ def train(args, online_model, target_model, train_env, optimizer, scheduler = No
     plt.ylabel('Best Difference')
     plt.title('RL Defense Success Throughout Training')
     plt.legend()
-    plt.savefig('rl_defense_training_success.png')
+    plt.savefig(os.path.join(f"./saved_models/{filename}/", f'rl_defense_training_success_{10}_gdm_{args.num_completions}_{args.num_steps}_{args.model_file}_{train_env.alpha}_{train_env.beta}.png'))
     plt.show()
 
     plt.figure(figsize=(10, 6))
@@ -377,7 +445,7 @@ def train(args, online_model, target_model, train_env, optimizer, scheduler = No
     plt.ylabel('Cumulative Reward')
     plt.title('Reward Signal Throughout Training')
     plt.legend()
-    plt.savefig('rl_defense_training_rewards.png')
+    plt.savefig(os.path.join(f"./saved_models/{filename}/", f'rl_defense_training_rewards_{10}_gdm_{args.num_completions}_{args.num_steps}_{args.model_file}_{train_env.alpha}_{train_env.beta}.png'))
     plt.show()
     pbar.close()
     (val_starting_removal, val_starting_removal_with_reinsert, val_best_removal,
@@ -388,7 +456,7 @@ def train(args, online_model, target_model, train_env, optimizer, scheduler = No
         f"Diff-R: {val_best_removal_with_reinsert - val_starting_removal_with_reinsert} | ")
     print(
         f"Best performance throughout training | Diff (No-R/R): {max_diff}/{max_diff_with_reinsert}")
-    online_model.load_state_dict(best_model_state)
+    online_model.load_state_dict(best_model_state_with_reinsert)
     (cache_val_starting_removal, cache_val_starting_removal_with_reinsert, cache_val_best_removal,
      cache_val_best_removal_with_reinsert) = evaluate(train_env.copy(), online_model)
     print(
@@ -396,9 +464,8 @@ def train(args, online_model, target_model, train_env, optimizer, scheduler = No
         f"Diff: {cache_val_best_removal - cache_val_starting_removal} | "
         f"Diff-R: {cache_val_best_removal_with_reinsert - cache_val_starting_removal_with_reinsert} | ")
 
-    return (max(cache_val_best_removal - cache_val_starting_removal, val_best_removal - val_starting_removal, max_diff),
-            max(cache_val_best_removal_with_reinsert - cache_val_starting_removal_with_reinsert,
-                val_best_removal_with_reinsert - val_starting_removal_with_reinsert, max_diff_with_reinsert))
+    return max(max_diff, max_eval_diff), max(max_diff_with_reinsert, max_eval_diff_with_reinsert)
+
 
 
 def main(args):
@@ -407,15 +474,19 @@ def main(args):
 
     embedding_dimension = 30*10  # last conv layer * num heads
 
-    if args.model_folder is None:
+    if args.model_file is None:
         # no pretrained RL-based models, instead we just quickly train a GDM dismantler
-        attack_model, _ = pretrain(args, epochs=10)
+        attack_model, _ = pretrain(args, epochs=0)
+        # we load the 10 graph model
+        print(f"Loading 10-graph model")
+        attack_model.load_state_dict(torch.load("./saved_models/gdm_best_model_with_reinsert_10.pt"))
+
     best_no_reinserts = []
     best_with_reinserts = []
     for i, graph in enumerate(test_dataset):
         edge_count_to_add_val = edge_add_count_fn(graph)
         print(f"Running graph {i} with {graph.num_nodes} nodes and {graph.num_edges} edges | Edges to add: {edge_count_to_add_val}")
-        if args.model_folder is not None:
+        if args.model_file is not None:
             attack_model = load_pretrained_model(args, test_dataset.files[i])
         model_args = GDM_GATArgs(conv_layers=[40, 30], heads=[10, 10], fc_layers=[100, 100], use_sigmoid=True,
                                  for_rl=False)
@@ -426,9 +497,11 @@ def main(args):
         online_model = LinkPredictor(embedding_model=defender_embedder, embedding_size=embedding_dimension).to(device)
         target_model = LinkPredictor(embedding_model=defender_embedder, embedding_size=embedding_dimension).to(device)
         optimizer = torch.optim.SGD(online_model.parameters(), lr=args.lr)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=args.lr/10)
-        train_env = EdgeGraphEnv(graph, lcc_threshold_fn, attack_model, alpha=1, edge_count_to_add=edge_count_to_add_val)
-        best_diff, best_diff_with_reinsert = train(args, online_model, target_model, train_env, optimizer, scheduler)
+        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=args.lr/10)
+        scheduler = None
+        train_env = EdgeGraphEnv(graph, lcc_threshold_fn, attack_model, alpha=args.alpha, beta=args.beta, edge_count_to_add=edge_count_to_add_val)
+        best_diff, best_diff_with_reinsert = train(args, online_model, target_model, train_env, optimizer, scheduler,
+                                                   os.path.splitext(os.path.basename(test_dataset.files[i]))[0])
         best_no_reinserts.append(best_diff)
         best_with_reinserts.append(best_diff_with_reinsert)
         print(f"Graph {i + 1}/{len(test_dataset)}: Best Diff: {best_diff} | Best With Reinserts: {best_diff_with_reinsert}")
@@ -443,7 +516,9 @@ def main(args):
 
 def get_parser():
     parser = get_pre_parser()
-    parser.add_argument("--model_folder", type=str, default=None, help="path to folder of pretrained attack models (one per graph since assumed they were trained with RL)")
+    parser.add_argument("--model_file", type=str, default=None, help="path to folder of pretrained attack models (one per graph since assumed they were trained with RL)")
+    parser.add_argument("--alpha", type=float, default=1.0)
+    parser.add_argument("--beta", type=float, default=1.0)
     # parser.add_argument("--edges_to_add", type=int, default=10, help="number of edges to add")
     return parser
 
